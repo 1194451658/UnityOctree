@@ -21,11 +21,18 @@ using UnityEngine;
 // Note: For loops are often used here since in some cases (e.g. the IsColliding method)
 // they actually give much better performance than using Foreach, even in the compiled build.
 // Using a LINQ expression is worse again than Foreach.
+
+//	* 矛盾: 
+//	* Octree大概原理也知道
+//	* 类中的小变量也非常多，有的小变量，一看也知道是干什么的。有的小变量一看，不知道是干什么的。
 public class BoundsOctree<T> {
+
 	// The total amount of objects currently in the tree
+	// 总节点个数
 	public int Count { get; private set; }
 
 	// Root node of the octree
+	// 根节点
 	BoundsOctreeNode<T> rootNode;
 
 	// Should be a value between 1 and 2. A multiplier for the base size of a node.
@@ -33,10 +40,14 @@ public class BoundsOctree<T> {
 	readonly float looseness;
 
 	// Size that the octree was on creation
+	// 初始大小
+	// Q: 如何起作用的？
 	readonly float initialSize;
 
 	// Minimum side length that a node can be - essentially an alternative to having a max depth
+	// Q: ?
 	readonly float minSize;
+
 	// For collision visualisation. Automatically removed in builds.
 	#if UNITY_EDITOR
 	const int numCollisionsToSave = 4;
@@ -51,6 +62,7 @@ public class BoundsOctree<T> {
 	/// <param name="initialWorldPos">Position of the centre of the initial node.</param>
 	/// <param name="minNodeSize">Nodes will stop splitting if the new nodes would be smaller than this (metres).</param>
 	/// <param name="loosenessVal">Clamped between 1 and 2. Values > 1 let nodes overlap.</param>
+	// 构造函数
 	public BoundsOctree(float initialWorldSize, Vector3 initialWorldPos, float minNodeSize, float loosenessVal) {
 		if (minNodeSize > initialWorldSize) {
 			Debug.LogWarning("Minimum node size must be at least as big as the initial world size. Was: " + minNodeSize + " Adjusted to: " + initialWorldSize);
@@ -70,6 +82,7 @@ public class BoundsOctree<T> {
 	/// </summary>
 	/// <param name="obj">Object to add.</param>
 	/// <param name="objBounds">3D bounding box around the object.</param>
+	// 添加节点
 	public void Add(T obj, Bounds objBounds) {
 		// Add object or expand the octree until it can be added
 		int count = 0; // Safety check against infinite/excessive growth

@@ -3,41 +3,60 @@ using UnityEngine;
 
 // A node in a BoundsOctree
 // Copyright 2014 Nition, BSD licence (see LICENCE file). http://nition.co
+
 public class BoundsOctreeNode<T> {
+
 	// Centre of this node
+	// 节点的中心位置
 	public Vector3 Center { get; private set; }
 
 	// Length of this node if it has a looseness of 1.0
+	// Q: ?
 	public float BaseLength { get; private set; }
 
 	// Looseness value for this node
 	float looseness;
 
 	// Minimum size for a node in this octree
+	// 八叉树允许的最小的1/2节点大小
+	// 比此值小的节点，即使节点内存储的物体个数，超过限制，
+	// 也不会再创建更小的子节点
 	float minSize;
 
 	// Actual length of sides, taking the looseness value into account
+	// adjLength = looseness * baseLengthVal;
+	// 用来和Center，来创建Bounds的大小
 	float adjLength;
 
 	// Bounding box that represents this node
+	// 本节点考虑了loose之后的Bounds大小
+	// 中心点是Center
 	Bounds bounds = default(Bounds);
 
 	// Objects in this node
+	// 本节点内，存储的物体
+	// （包括：要存储的物体，和物体的Bounds）
 	readonly List<OctreeObject> objects = new List<OctreeObject>();
 
 	// Child nodes, if any
+	// 子节点
 	BoundsOctreeNode<T>[] children = null;
 
+	// 是否有孩子节点
 	bool HasChildren { get { return children != null; } }
 
 	// Bounds of potential children to this node. These are actual size (with looseness taken into account), not base size
+	// Q: ?
 	Bounds[] childBounds;
 
 	// If there are already NUM_OBJECTS_ALLOWED in a node, we split it into children
 	// A generally good number seems to be something around 8-15
+	// 本节点内，允许存储的物体个数
 	const int NUM_OBJECTS_ALLOWED = 8;
 
 	// An object in the octree
+	// 存储到本节点的物体的结构
+	// （包括：要存储的物体，和物体的Bounds）
 	class OctreeObject {
 		public T Obj;
 		public Bounds Bounds;
@@ -50,6 +69,7 @@ public class BoundsOctreeNode<T> {
 	/// <param name="minSizeVal">Minimum size of nodes in this octree.</param>
 	/// <param name="loosenessVal">Multiplier for baseLengthVal to get the actual size.</param>
 	/// <param name="centerVal">Centre position of this node.</param>
+	// 构造函数
 	public BoundsOctreeNode(float baseLengthVal, float minSizeVal, float loosenessVal, Vector3 centerVal) {
 		SetValues(baseLengthVal, minSizeVal, loosenessVal, centerVal);
 	}
@@ -62,7 +82,12 @@ public class BoundsOctreeNode<T> {
 	/// <param name="obj">Object to add.</param>
 	/// <param name="objBounds">3D bounding box around the object.</param>
 	/// <returns>True if the object fits entirely within this node.</returns>
+
+	// 检查本节点，是否包含objBounds
+	// 返回：本节点是否添加了此obj
 	public bool Add(T obj, Bounds objBounds) {
+		// 如果本节点，不包含objBounds
+		// 不进行添加
 		if (!Encapsulates(bounds, objBounds)) {
 			return false;
 		}
@@ -391,6 +416,11 @@ public class BoundsOctreeNode<T> {
 	/// </summary>
 	/// <param name="objBounds">The object's bounds.</param>
 	/// <returns>One of the eight child octants.</returns>
+
+	// 根据物体的中心点
+	// 查找最合适放置的子节点
+	// 返回3个bit位置 000
+	// 分别代表z轴，y轴，x轴的方向
 	public int BestFitChild(Vector3 objBoundsCenter) {
 		return (objBoundsCenter.x <= Center.x ? 0 : 1) + (objBoundsCenter.y >= Center.y ? 0 : 4) + (objBoundsCenter.z <= Center.z ? 0 : 2);
 	}
@@ -421,6 +451,13 @@ public class BoundsOctreeNode<T> {
 	/// <param name="minSizeVal">Minimum size of nodes in this octree.</param>
 	/// <param name="loosenessVal">Multiplier for baseLengthVal to get the actual size.</param>
 	/// <param name="centerVal">Centre position of this node.</param>
+
+	// 初始化本节点的大小，loose值
+	// 根据配置，创建本节点的Bounds，和8个子Bounds
+	// baseLengthVal: 不考虑loose的原始大小
+	// minSizeVal: ???
+	// loosenessVal: loose值
+	// centerVal: 本节点Bounds中心点
 	void SetValues(float baseLengthVal, float minSizeVal, float loosenessVal, Vector3 centerVal) {
 		BaseLength = baseLengthVal;
 		minSize = minSizeVal;
@@ -430,11 +467,19 @@ public class BoundsOctreeNode<T> {
 
 		// Create the bounding box.
 		Vector3 size = new Vector3(adjLength, adjLength, adjLength);
+
+		// 和Center一起，创建Bounds大小
 		bounds = new Bounds(Center, size);
 
 		float quarter = BaseLength / 4f;
+
+		// 计算孩子节点大小（考虑looseness）
 		float childActualLength = (BaseLength / 2) * looseness;
 		Vector3 childActualSize = new Vector3(childActualLength, childActualLength, childActualLength);
+
+		// 创建8个分区Bounds
+		// 分区的中心点，是根据没有loose的大小确定的
+		// 分区的大小，是考虑了loose的
 		childBounds = new Bounds[8];
 		childBounds[0] = new Bounds(Center + new Vector3(-quarter, quarter, -quarter), childActualSize);
 		childBounds[1] = new Bounds(Center + new Vector3(quarter, quarter, -quarter), childActualSize);
@@ -456,18 +501,29 @@ public class BoundsOctreeNode<T> {
 
 		// We always put things in the deepest possible child
 		// So we can skip some checks if there are children aleady
+		// 如果，没有子节点
 		if (!HasChildren) {
 			// Just add if few objects are here, or children would be below min size
-			if (objects.Count < NUM_OBJECTS_ALLOWED || (BaseLength / 2) < minSize) {
+
+			// 如果本节点内，存储的物体个数，还未达到允许的最大个数
+			if (objects.Count < NUM_OBJECTS_ALLOWED ||
+				(BaseLength / 2) < minSize) {		// 此节点的1/2大小，已经小于最小节点(将不会再创建更小的子节点，所以即使已经存储的物体个数过高，也会继续在此节点存储)
+
+				// 存储物体
+				// 到本节点
 				OctreeObject newObj = new OctreeObject { Obj = obj, Bounds = objBounds };
 				objects.Add(newObj);
 				return; // We're done. No children yet
 			}
 
+			// 需要继续向下
+			// 存放到更下层的节点
+
 			// Fits at this level, but we can go deeper. Would it fit there?
 			// Create the 8 children
 			int bestFitChild;
 			if (children == null) {
+				// 将按照本节点，分割成更小的8个子节点
 				Split();
 				if (children == null) {
 					Debug.LogError("Child creation failed for an unknown reason. Early exit.");
@@ -475,13 +531,26 @@ public class BoundsOctreeNode<T> {
 				}
 
 				// Now that we have the new children, see if this node's existing objects would fit there
+				// 遍历已经加载此节点中的物体
 				for (int i = objects.Count - 1; i >= 0; i--) {
 					OctreeObject existingObj = objects[i];
 					// Find which child the object is closest to based on where the
 					// object's center is located in relation to the octree's center
+
+					// 根据物体的中心点
+					// 查找最合适放置的子节点
+					// 返回3个bit位置 000
+					// 分别代表z轴，y轴，x轴的方向
 					bestFitChild = BestFitChild(existingObj.Bounds.center);
+
 					// Does it fit?
+					// 上面的BestFitChild是根据中心点进行的判断
+					// 这里又继续，判断，子节点的Bounds(考虑了looseness)是否包住了，要添加的物体
+					// Q: 可能出现，发生在边缘的情况？！
+					// 导致，子节点，都不能包住物体？！
 					if (Encapsulates(children[bestFitChild].bounds, existingObj.Bounds)) {
+						// 从本节点中移除，
+						// 添加到子节点
 						children[bestFitChild].SubAdd(existingObj.Obj, existingObj.Bounds); // Go a level deeper					
 						objects.Remove(existingObj); // Remove from here
 					}
@@ -535,9 +604,13 @@ public class BoundsOctreeNode<T> {
 	/// <summary>
 	/// Splits the octree into eight children.
 	/// </summary>
+
+	// 将按照本节点，分割成更小的8个子节点
 	void Split() {
 		float quarter = BaseLength / 4f;
 		float newLength = BaseLength / 2;
+
+		// 创建8个，子节点
 		children = new BoundsOctreeNode<T>[8];
 		children[0] = new BoundsOctreeNode<T>(newLength, minSize, looseness, Center + new Vector3(-quarter, quarter, -quarter));
 		children[1] = new BoundsOctreeNode<T>(newLength, minSize, looseness, Center + new Vector3(quarter, quarter, -quarter));
@@ -574,8 +647,10 @@ public class BoundsOctreeNode<T> {
 	/// <param name="outerBounds">Outer bounds.</param>
 	/// <param name="innerBounds">Inner bounds.</param>
 	/// <returns>True if innerBounds is fully encapsulated by outerBounds.</returns>
+	// outerBounds是否包含innerBounds
 	static bool Encapsulates(Bounds outerBounds, Bounds innerBounds) {
-		return outerBounds.Contains(innerBounds.min) && outerBounds.Contains(innerBounds.max);
+		return outerBounds.Contains(innerBounds.min) &&
+			outerBounds.Contains(innerBounds.max);
 	}
 
 	/// <summary>
