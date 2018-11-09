@@ -83,7 +83,10 @@ public class BoundsOctreeNode<T> {
 	/// <param name="objBounds">3D bounding box around the object.</param>
 	/// <returns>True if the object fits entirely within this node.</returns>
 
-	// 检查本节点，是否包含objBounds
+	// 如果本节点，可以包含此节点，调用SubAdd()函数进行添加
+	// SubAdd()，会检测是否需要分裂此节点，生成更小的子节点
+	// 并检测最适合的可以完全包围的子节点进行添加，
+	// 如果没有最适合的可以包含的子节点，则停留在本层节点
 	// 返回：本节点是否添加了此obj
 	public bool Add(T obj, Bounds objBounds) {
 		// 如果本节点，不包含objBounds
@@ -100,9 +103,12 @@ public class BoundsOctreeNode<T> {
 	/// </summary>
 	/// <param name="obj">Object to remove.</param>
 	/// <returns>True if the object was removed successfully.</returns>
+
+	// 从树中，删除物体
 	public bool Remove(T obj) {
 		bool removed = false;
 
+		// 从本层中删除
 		for (int i = 0; i < objects.Count; i++) {
 			if (objects[i].Obj.Equals(obj)) {
 				removed = objects.Remove(objects[i]);
@@ -110,6 +116,7 @@ public class BoundsOctreeNode<T> {
 			}
 		}
 
+		// 从孩子中取删除
 		if (!removed && children != null) {
 			for (int i = 0; i < 8; i++) {
 				removed = children[i].Remove(obj);
@@ -117,6 +124,8 @@ public class BoundsOctreeNode<T> {
 			}
 		}
 
+		// 如果有删除
+		// 孩子的个数会减少
 		if (removed && children != null) {
 			// Check if we should merge nodes now that we've removed an item
 			if (ShouldMerge()) {
@@ -496,12 +505,19 @@ public class BoundsOctreeNode<T> {
 	/// </summary>
 	/// <param name="obj">Object to add.</param>
 	/// <param name="objBounds">3D bounding box around the object.</param>
+
+	// 添加物体到节点
+	// 检查是否需要分裂出，更下层的更小的子节点
+	// 如果需要此操作，会将本层，可以完全适配到更小子节点的物体，下移
+	// 添加此物体，也会查找最合适的子节点
+	// 如果没有则会停留在此层节点
 	void SubAdd(T obj, Bounds objBounds) {
 		// We know it fits at this level if we've got this far
 
 		// We always put things in the deepest possible child
 		// So we can skip some checks if there are children aleady
 		// 如果，没有子节点
+		// 需要检测下是否需要分裂子节点(该过程还会将本节点内保存的物体下移，所以这里有if特殊处理)
 		if (!HasChildren) {
 			// Just add if few objects are here, or children would be below min size
 
@@ -546,25 +562,28 @@ public class BoundsOctreeNode<T> {
 					// Does it fit?
 					// 上面的BestFitChild是根据中心点进行的判断
 					// 这里又继续，判断，子节点的Bounds(考虑了looseness)是否包住了，要添加的物体
-					// Q: 可能出现，发生在边缘的情况？！
-					// 导致，子节点，都不能包住物体？！
+					// Q: 可能出现，发生在边缘的情况？！导致，子节点，都不能包住物体？！
+					// 所以需要设置个合适的looseness ?
+					// 没有被子节点完全包围的物体，将仍然保留在本层的节点中
 					if (Encapsulates(children[bestFitChild].bounds, existingObj.Bounds)) {
 						// 从本节点中移除，
 						// 添加到子节点
 						children[bestFitChild].SubAdd(existingObj.Obj, existingObj.Bounds); // Go a level deeper					
 						objects.Remove(existingObj); // Remove from here
 					}
-				}
-			}
-		}
+				}	// for (int i = objects.Count - 1; i >= 0; i--) {
+			}	// if(children == null)
+		} // if(!HasChildren)
 
 		// Handle the new object we're adding now
+		// 检查最能包围的子节点
 		int bestFit = BestFitChild(objBounds.center);
 		if (Encapsulates(children[bestFit].bounds, objBounds)) {
 			children[bestFit].SubAdd(obj, objBounds);
 		}
 		else {
 			// Didn't fit in a child. We'll have to it to this node instead
+			// 如果没有被包围的子节点，仍然保留在本层的节点中
 			OctreeObject newObj = new OctreeObject { Obj = obj, Bounds = objBounds };
 			objects.Add(newObj);
 		}
@@ -657,6 +676,7 @@ public class BoundsOctreeNode<T> {
 	/// Checks if there are few enough objects in this node and its children that the children should all be merged into this.
 	/// </summary>
 	/// <returns>True there are less or the same abount of objects in this and its children than numObjectsAllowed.</returns>
+	// 检查是否需要，合并子节点
 	bool ShouldMerge() {
 		int totalObjects = objects.Count;
 		if (children != null) {
