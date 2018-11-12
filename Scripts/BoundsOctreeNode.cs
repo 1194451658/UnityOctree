@@ -11,7 +11,8 @@ public class BoundsOctreeNode<T> {
 	public Vector3 Center { get; private set; }
 
 	// Length of this node if it has a looseness of 1.0
-	// Q: ?
+	// 不考虑looseness的大小
+	// 基础大小
 	public float BaseLength { get; private set; }
 
 	// Looseness value for this node
@@ -160,13 +161,23 @@ public class BoundsOctreeNode<T> {
 	/// </summary>
 	/// <param name="checkBounds">Bounds to check.</param>
 	/// <returns>True if there was a collision.</returns>
+
+	//	检查Bounds区域，是否和树中的某物体，相碰撞
+	//	Bounds是结构体，所以下面用ref关键字
+	//	* 注:
+	//		* 单个碰撞的检测，是很简单的
+	//		* 只是有一个八叉树分割空间的结构
+	//		* 在这个结构上，一层层的比较下去
 	public bool IsColliding(ref Bounds checkBounds) {
 		// Are the input bounds at least partially in this node?
+
+		// 先检查，是否和整体大小，相碰撞
 		if (!bounds.Intersects(checkBounds)) {
 			return false;
 		}
 
 		// Check against any objects in this node
+		// 是否和，本层节点中的物体，相碰撞
 		for (int i = 0; i < objects.Count; i++) {
 			if (objects[i].Bounds.Intersects(checkBounds)) {
 				return true;
@@ -174,6 +185,7 @@ public class BoundsOctreeNode<T> {
 		}
 
 		// Check children
+		// 是否和，孩子节点中的物体，相碰撞
 		if (children != null) {
 			for (int i = 0; i < 8; i++) {
 				if (children[i].IsColliding(ref checkBounds)) {
@@ -191,14 +203,20 @@ public class BoundsOctreeNode<T> {
 	/// <param name="checkRay">Ray to check.</param>
 	/// <param name="maxDistance">Distance to check.</param>
 	/// <returns>True if there was a collision.</returns>
+
+	// 检查摄像Ray，是否和树中的某物体，相碰撞
+	// 同上面的 IsColliding(Bounds)
 	public bool IsColliding(ref Ray checkRay, float maxDistance = float.PositiveInfinity) {
 		// Is the input ray at least partially in this node?
 		float distance;
+
+		// 先检测，是否和本节点的Bounds相碰撞
 		if (!bounds.IntersectRay(checkRay, out distance) || distance > maxDistance) {
 			return false;
 		}
 
 		// Check against any objects in this node
+		// 检查，是否和，本节点中保存的物体，相碰撞
 		for (int i = 0; i < objects.Count; i++) {
 			if (objects[i].Bounds.IntersectRay(checkRay, out distance) && distance <= maxDistance) {
 				return true;
@@ -206,6 +224,7 @@ public class BoundsOctreeNode<T> {
 		}
 
 		// Check children
+		// 再检查，是否和孩子中的物体，相碰撞
 		if (children != null) {
 			for (int i = 0; i < 8; i++) {
 				if (children[i].IsColliding(ref checkRay, maxDistance)) {
@@ -223,6 +242,9 @@ public class BoundsOctreeNode<T> {
 	/// <param name="checkBounds">Bounds to check. Passing by ref as it improves performance with structs.</param>
 	/// <param name="result">List result.</param>
 	/// <returns>Objects that intersect with the specified bounds.</returns>
+
+	// 检查Bounds，碰撞到的物体列表
+	// 同IsColliding
 	public void GetColliding(ref Bounds checkBounds, List<T> result) {
 		// Are the input bounds at least partially in this node?
 		if (!bounds.Intersects(checkBounds)) {
@@ -251,6 +273,9 @@ public class BoundsOctreeNode<T> {
 	/// <param name="maxDistance">Distance to check.</param>
 	/// <param name="result">List result.</param>
 	/// <returns>Objects that intersect with the specified ray.</returns>
+
+	// 获取射线Ray，碰撞到的物体的列表
+	// 同IsColliding函数
 	public void GetColliding(ref Ray checkRay, List<T> result, float maxDistance = float.PositiveInfinity) {
 		float distance;
 		// Is the input ray at least partially in this node?
@@ -273,6 +298,9 @@ public class BoundsOctreeNode<T> {
 		}
 	}
 
+	// 使用八叉树结构，一层层的调用GeometryUtility.TestPlanesAABB()
+	// 检测碰撞
+	// 注：GeometryUtility.CalculateFrustumPlanes()函数，可以计算Camera的6个平面
 	public void GetWithinFrustum(Plane[] planes, List<T> result) {
 		// Is the input node inside the frustum?
 		if (!GeometryUtility.TestPlanesAABB(planes, bounds)) {
@@ -298,6 +326,8 @@ public class BoundsOctreeNode<T> {
 	/// Set the 8 children of this octree.
 	/// </summary>
 	/// <param name="childOctrees">The 8 new child nodes.</param>
+
+	// 手动设置本节点的，8个孩子节点？
 	public void SetChildren(BoundsOctreeNode<T>[] childOctrees) {
 		if (childOctrees.Length != 8) {
 			Debug.LogError("Child octree array must be length 8. Was length: " + childOctrees.Length);
@@ -307,6 +337,7 @@ public class BoundsOctreeNode<T> {
 		children = childOctrees;
 	}
 
+	// 返回本节点的Bounds大小
 	public Bounds GetBounds() {
 		return bounds;
 	}
@@ -316,13 +347,17 @@ public class BoundsOctreeNode<T> {
 	/// Must be called from OnDrawGizmos externally. See also: DrawAllObjects.
 	/// </summary>
 	/// <param name="depth">Used for recurcive calls to this method.</param>
+
+	// 画出，所有节点的Bounds
 	public void DrawAllBounds(float depth = 0) {
 		float tintVal = depth / 7; // Will eventually get values > 1. Color rounds to 1 automatically
 		Gizmos.color = new Color(tintVal, 0, 1.0f - tintVal);
 
+		// 画出本节点的Bounds
 		Bounds thisBounds = new Bounds(Center, new Vector3(adjLength, adjLength, adjLength));
 		Gizmos.DrawWireCube(thisBounds.center, thisBounds.size);
 
+		// 画出孩子节点的Bounds
 		if (children != null) {
 			depth++;
 			for (int i = 0; i < 8; i++) {
@@ -336,14 +371,19 @@ public class BoundsOctreeNode<T> {
 	/// Draws the bounds of all objects in the tree visually for debugging.
 	/// Must be called from OnDrawGizmos externally. See also: DrawAllBounds.
 	/// </summary>
+
+	// 使用Gizmos画出所有节点，
+	// 内物体的Bounds
 	public void DrawAllObjects() {
 		float tintVal = BaseLength / 20;
 		Gizmos.color = new Color(0, 1.0f - tintVal, tintVal, 0.25f);
 
+		// 画出本节点内的物体
 		foreach (OctreeObject obj in objects) {
 			Gizmos.DrawCube(obj.Bounds.center, obj.Bounds.size);
 		}
 
+		// 画出孩子节点内的物体
 		if (children != null) {
 			for (int i = 0; i < 8; i++) {
 				children[i].DrawAllObjects();
@@ -362,16 +402,31 @@ public class BoundsOctreeNode<T> {
 	/// </summary>
 	/// <param name="minLength">Minimum dimensions of a node in this octree.</param>
 	/// <returns>The new root, or the existing one if we didn't shrink.</returns>
+
+	// 没有调用的地方，需要手动调用
+	//	* 主要是：
+	//		* 当所有的物体，都集中在一个八分之一空间的时候，
+	//		* 进行整个八叉树范围的收缩
 	public BoundsOctreeNode<T> ShrinkIfPossible(float minLength) {
+
+		// 如果已经比，要求的minLength*2小
+		// 返回
 		if (BaseLength < (2 * minLength)) {
 			return this;
 		}
+
+		// 如果本节点内，没有物体
+		// 也没有孩子节点
+		// 返回
 		if (objects.Count == 0 && (children == null || children.Length == 0)) {
 			return this;
 		}
 
 		// Check objects in root
 		int bestFit = -1;
+
+		// 遍历本节点内，所有物体
+		// 主要判断，是否所有物体，都在同一个八分之一空间
 		for (int i = 0; i < objects.Count; i++) {
 			OctreeObject curObj = objects[i];
 			int newBestFit = BestFitChild(curObj.Bounds.center);
@@ -393,6 +448,8 @@ public class BoundsOctreeNode<T> {
 		}
 
 		// Check objects in children if there are any
+		// 检查所有的孩子节点
+		// 有物体存放的孩子节点，是否也是上面判断出来的，本节点所有物体所在的八分之一空间
 		if (children != null) {
 			bool childHadContent = false;
 			for (int i = 0; i < children.Length; i++) {
@@ -410,6 +467,8 @@ public class BoundsOctreeNode<T> {
 		}
 
 		// Can reduce
+		// 如果可以收缩
+		// 收缩1/2
 		if (children == null) {
 			// We don't have any children, so just shrink this node to the new size
 			// We already know that everything will still fit in it
@@ -423,6 +482,7 @@ public class BoundsOctreeNode<T> {
 		}
 
 		// We have children. Use the appropriate child as the new root node
+		// Q: ?
 		return children[bestFit];
 	}
 
@@ -732,6 +792,8 @@ public class BoundsOctreeNode<T> {
 	/// Checks if this node or anything below it has something in it.
 	/// </summary>
 	/// <returns>True if this node or any of its children, grandchildren etc have something in them</returns>
+
+	// 检查树中，是否有包含物体
 	public bool HasAnyObjects() {
 		if (objects.Count > 0) return true;
 
