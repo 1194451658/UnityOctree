@@ -105,6 +105,7 @@ public class BoundsOctreeNode<T> {
 	/// <returns>True if the object was removed successfully.</returns>
 
 	// 从树中，删除物体
+	// 复杂度：线性遍历？！
 	public bool Remove(T obj) {
 		bool removed = false;
 
@@ -128,7 +129,12 @@ public class BoundsOctreeNode<T> {
 		// 孩子的个数会减少
 		if (removed && children != null) {
 			// Check if we should merge nodes now that we've removed an item
+			// 检查是否需要，合并子节点
+			// (所有孩子的个数 <= 分裂值)
 			if (ShouldMerge()) {
+
+				// 将8个孩子节点下，存放的物体，添加到本节点中
+				// 移除掉孩子节点
 				Merge();
 			}
 		}
@@ -595,9 +601,14 @@ public class BoundsOctreeNode<T> {
 	/// <param name="obj">Object to remove.</param>
 	/// <param name="objBounds">3D bounding box around the object.</param>
 	/// <returns>True if the object was removed successfully.</returns>
+
+	// 同上面的，一个，Remove(T obj)函数
+	// 从树中，删除物体
+	// 复杂度：线性遍历？！
 	bool SubRemove(T obj, Bounds objBounds) {
 		bool removed = false;
 
+		// 从本层中删除
 		for (int i = 0; i < objects.Count; i++) {
 			if (objects[i].Obj.Equals(obj)) {
 				removed = objects.Remove(objects[i]);
@@ -605,14 +616,24 @@ public class BoundsOctreeNode<T> {
 			}
 		}
 
+		// 从孩子中取删除
+		// 根据Bounds，可以计算最佳适配孩子节点
 		if (!removed && children != null) {
 			int bestFitChild = BestFitChild(objBounds.center);
 			removed = children[bestFitChild].SubRemove(obj, objBounds);
 		}
 
+		// 检查是否需要合并
+
+		// 如果有删除
+		// 孩子的个数会减少
 		if (removed && children != null) {
 			// Check if we should merge nodes now that we've removed an item
+			// 检查是否需要，合并子节点
+			// (所有孩子的个数 <= 分裂值)
 			if (ShouldMerge()) {
+				// 将8个孩子节点下，存放的物体，添加到本节点中
+				// 移除掉孩子节点
 				Merge();
 			}
 		}
@@ -646,10 +667,16 @@ public class BoundsOctreeNode<T> {
 	/// Note: We only have to check one level down since a merge will never happen if the children already have children,
 	/// since THAT won't happen unless there are already too many objects to merge.
 	/// </summary>
+
+	// 将8个孩子节点下，存放的物体，添加到本节点中
+	// 移除掉孩子节点
 	void Merge() {
 		// Note: We know children != null or we wouldn't be merging
+
+		// 遍历8个子节点
 		for (int i = 0; i < 8; i++) {
 			BoundsOctreeNode<T> curChild = children[i];
+			// 将孩子下的节点，全都添加到本节点中
 			int numObjects = curChild.objects.Count;
 			for (int j = numObjects - 1; j >= 0; j--) {
 				OctreeObject curObj = curChild.objects[j];
@@ -657,6 +684,7 @@ public class BoundsOctreeNode<T> {
 			}
 		}
 		// Remove the child nodes (and the objects in them - they've been added elsewhere now)
+		// 清除孩子节点
 		children = null;
 	}
 
@@ -676,10 +704,16 @@ public class BoundsOctreeNode<T> {
 	/// Checks if there are few enough objects in this node and its children that the children should all be merged into this.
 	/// </summary>
 	/// <returns>True there are less or the same abount of objects in this and its children than numObjectsAllowed.</returns>
+
 	// 检查是否需要，合并子节点
+	// (所有孩子的个数 <= 分裂值)
 	bool ShouldMerge() {
+
+		// 计算本节点中孩子个数，和
+		// 所有子节点中的，孩子个数和
 		int totalObjects = objects.Count;
 		if (children != null) {
+			// 遍历8个孩子节点
 			foreach (BoundsOctreeNode<T> child in children) {
 				if (child.children != null) {
 					// If any of the *children* have children, there are definitely too many to merge,
@@ -689,6 +723,8 @@ public class BoundsOctreeNode<T> {
 				totalObjects += child.objects.Count;
 			}
 		}
+
+		// 是否，总孩子个数 <= 分裂值
 		return totalObjects <= NUM_OBJECTS_ALLOWED;
 	}
 
