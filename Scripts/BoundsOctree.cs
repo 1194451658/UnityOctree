@@ -27,6 +27,11 @@ using UnityEngine;
 //	* 类中的小变量也非常多，有的小变量，一看也知道是干什么的。有的小变量一看，不知道是干什么的。
 //		* 解决方法：
 //		* 全部看完，能混个脸熟就混个脸熟，能看懂的小的操作就看懂小的基础操作
+//	* 单个的Bounds和Bounds的碰撞，Ray和Bounds的碰撞，Frustum和Bounds的碰撞，是非常简单的。
+//	* 而且基本上也不用自己去写，几何碰撞计算，基本上是调用已有的函数
+//	* 最主要的是，这个节点组合成八叉树结构，用于进行空间分割
+//	* 八叉树的初始构造，后期加入删除节点的树结构的维护
+//	* 之前简单的单个单个的碰撞检测，就变成了树一层层的检测
 public class BoundsOctree<T> {
 
 	// The total amount of objects currently in the tree
