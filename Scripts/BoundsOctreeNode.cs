@@ -71,6 +71,7 @@ public class BoundsOctreeNode<T> {
 	/// <param name="loosenessVal">Multiplier for baseLengthVal to get the actual size.</param>
 	/// <param name="centerVal">Centre position of this node.</param>
 	// 构造函数
+	// baseLengthVal: 节点的大小
 	public BoundsOctreeNode(float baseLengthVal, float minSizeVal, float loosenessVal, Vector3 centerVal) {
 		SetValues(baseLengthVal, minSizeVal, loosenessVal, centerVal);
 	}
@@ -530,7 +531,7 @@ public class BoundsOctreeNode<T> {
 	// 初始化本节点的大小，loose值
 	// 根据配置，创建本节点的Bounds，和8个子Bounds
 	// baseLengthVal: 不考虑loose的原始大小
-	// minSizeVal: ???
+	// minSizeVal: 八叉树允许的，最小的1/2节点大小（再小将不会创建新的子节点，即使节点内存储的物体个数过多）
 	// loosenessVal: loose值
 	// centerVal: 本节点Bounds中心点
 	void SetValues(float baseLengthVal, float minSizeVal, float loosenessVal, Vector3 centerVal) {

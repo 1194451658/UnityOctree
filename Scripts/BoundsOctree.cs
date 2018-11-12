@@ -25,6 +25,8 @@ using UnityEngine;
 //	* 矛盾: 
 //	* Octree大概原理也知道
 //	* 类中的小变量也非常多，有的小变量，一看也知道是干什么的。有的小变量一看，不知道是干什么的。
+//		* 解决方法：
+//		* 全部看完，能混个脸熟就混个脸熟，能看懂的小的操作就看懂小的基础操作
 public class BoundsOctree<T> {
 
 	// The total amount of objects currently in the tree
@@ -37,6 +39,7 @@ public class BoundsOctree<T> {
 
 	// Should be a value between 1 and 2. A multiplier for the base size of a node.
 	// 1.0 is a "normal" octree, while values > 1 have overlap
+	// 实际节点的大小，要在basseLength的基础上扩大多少
 	readonly float looseness;
 
 	// Size that the octree was on creation
@@ -50,6 +53,7 @@ public class BoundsOctree<T> {
 
 	// For collision visualisation. Automatically removed in builds.
 	#if UNITY_EDITOR
+	// Q: 为了碰撞显示？
 	const int numCollisionsToSave = 4;
 	readonly Queue<Bounds> lastBoundsCollisionChecks = new Queue<Bounds>();
 	readonly Queue<Ray> lastRayCollisionChecks = new Queue<Ray>();
@@ -63,6 +67,11 @@ public class BoundsOctree<T> {
 	/// <param name="minNodeSize">Nodes will stop splitting if the new nodes would be smaller than this (metres).</param>
 	/// <param name="loosenessVal">Clamped between 1 and 2. Values > 1 let nodes overlap.</param>
 	// 构造函数
+	// 基本上是调用BoundsOctreeNode构造函数
+	// initialWorldSize: 根节点不考虑looseness的大小
+	// initialWorldPos: 根节点的中心位置
+	// minNodeSize: 八叉树允许的最小节点大小的1/2，再小将不会创建新的节点
+	// loosenessVal: looseness值
 	public BoundsOctree(float initialWorldSize, Vector3 initialWorldPos, float minNodeSize, float loosenessVal) {
 		if (minNodeSize > initialWorldSize) {
 			Debug.LogWarning("Minimum node size must be at least as big as the initial world size. Was: " + minNodeSize + " Adjusted to: " + initialWorldSize);
@@ -82,11 +91,19 @@ public class BoundsOctree<T> {
 	/// </summary>
 	/// <param name="obj">Object to add.</param>
 	/// <param name="objBounds">3D bounding box around the object.</param>
-	// 添加节点
+	// 添加物体
+	// 如果加不上，扩展八叉树范围
 	public void Add(T obj, Bounds objBounds) {
 		// Add object or expand the octree until it can be added
 		int count = 0; // Safety check against infinite/excessive growth
+		// 查实根节点中，加入物体
 		while (!rootNode.Add(obj, objBounds)) {
+			// 如果没有加上
+			// 尝试扩展八叉树大小
+
+			// 扩展八叉树的范围，原来的范围*2
+			// 会创建7个新的节点，同旧的根节点，一个8个节点
+			// 作为新的根节点的孩子
 			Grow(objBounds.center - rootNode.Center);
 			if (++count > 20) {
 				Debug.LogError("Aborted Add operation as it seemed to be going on forever (" + (count - 1) + ") attempts at growing the octree.");
@@ -101,6 +118,9 @@ public class BoundsOctree<T> {
 	/// </summary>
 	/// <param name="obj">Object to remove.</param>
 	/// <returns>True if the object was removed successfully.</returns>
+	// 移除物体
+	// 尝试ShrinkIfPossible，尝试缩减回原始创建时候的大小
+	// (应该是添加物体的时候，可能是灰产生扩展操作，这里再尝试缩回去)
 	public bool Remove(T obj) {
 		bool removed = rootNode.Remove(obj);
 
@@ -119,6 +139,7 @@ public class BoundsOctree<T> {
 	/// <param name="obj">Object to remove.</param>
 	/// <param name="objBounds">3D bounding box around the object.</param>
 	/// <returns>True if the object was removed successfully.</returns>
+	// 同上Remove
 	public bool Remove(T obj, Bounds objBounds) {
 		bool removed = rootNode.Remove(obj, objBounds);
 
@@ -136,6 +157,8 @@ public class BoundsOctree<T> {
 	/// </summary>
 	/// <param name="checkBounds">bounds to check.</param>
 	/// <returns>True if there was a collision.</returns>
+
+	// 直接调用BoundsOctreeNode中对应函数
 	public bool IsColliding(Bounds checkBounds) {
 		//#if UNITY_EDITOR
 		// For debugging
@@ -150,6 +173,8 @@ public class BoundsOctree<T> {
 	/// <param name="checkRay">ray to check.</param>
 	/// <param name="maxDistance">distance to check.</param>
 	/// <returns>True if there was a collision.</returns>
+
+	// 直接调用BoundsOctreeNode中对应函数
 	public bool IsColliding(Ray checkRay, float maxDistance) {
 		//#if UNITY_EDITOR
 		// For debugging
@@ -164,6 +189,8 @@ public class BoundsOctree<T> {
 	/// <param name="collidingWith">list to store intersections.</param>
 	/// <param name="checkBounds">bounds to check.</param>
 	/// <returns>Objects that intersect with the specified bounds.</returns>
+
+	// 直接调用BoundsOctreeNode中函数
 	public void GetColliding(List<T> collidingWith, Bounds checkBounds) {
 		//#if UNITY_EDITOR
 		// For debugging
@@ -179,6 +206,8 @@ public class BoundsOctree<T> {
 	/// <param name="checkRay">ray to check.</param>
 	/// <param name="maxDistance">distance to check.</param>
 	/// <returns>Objects that intersect with the specified ray.</returns>
+
+	// 直接调用BoundsOctreeNode中函数
 	public void GetColliding(List<T> collidingWith, Ray checkRay, float maxDistance = float.PositiveInfinity) {
 		//#if UNITY_EDITOR
 		// For debugging
@@ -187,6 +216,8 @@ public class BoundsOctree<T> {
 		rootNode.GetColliding(ref checkRay, collidingWith, maxDistance);
 	}
 
+	// 计算摄像机Camera的6个平面
+	// 调用BoundsOctreeNode中函数
 	public List<T> GetWithinFrustum(Camera cam) {
 		var planes = GeometryUtility.CalculateFrustumPlanes(cam);
 
@@ -195,6 +226,7 @@ public class BoundsOctree<T> {
 		return list;
 	}
 
+	// 得到根节点的Bounds
 	public Bounds GetMaxBounds() {
 		return rootNode.GetBounds();
 	}
@@ -203,6 +235,7 @@ public class BoundsOctree<T> {
 	/// Draws node boundaries visually for debugging.
 	/// Must be called from OnDrawGizmos externally. See also: DrawAllObjects.
 	/// </summary>
+	// 直接调用BoundsOctreeNode函数
 	public void DrawAllBounds() {
 		rootNode.DrawAllBounds();
 	}
@@ -211,6 +244,7 @@ public class BoundsOctree<T> {
 	/// Draws the bounds of all objects in the tree visually for debugging.
 	/// Must be called from OnDrawGizmos externally. See also: DrawAllBounds.
 	/// </summary>
+	// 直接调用BoundsOctreeNode函数
 	public void DrawAllObjects() {
 		rootNode.DrawAllObjects();
 	}
@@ -222,14 +256,20 @@ public class BoundsOctree<T> {
 	/// Collision visualisation code is automatically removed from builds so that collision checks aren't slowed down.
 	/// </summary>
 	#if UNITY_EDITOR
+
+	// 调试碰撞
+	// 画出所有的lastBoundsCollisionChecks, lastRayCollisionChecks
 	public void DrawCollisionChecks() {
 		int count = 0;
+
+		// 画出所有的lastBoundsCollisionChecks
 		foreach (Bounds collisionCheck in lastBoundsCollisionChecks) {
 			Gizmos.color = new Color(1.0f, 1.0f - ((float)count / numCollisionsToSave), 1.0f);
 			Gizmos.DrawCube(collisionCheck.center, collisionCheck.size);
 			count++;
 		}
 
+		// 画出所有的lastRayCollisionChecks
 		foreach (Ray collisionCheck in lastRayCollisionChecks) {
 			Gizmos.color = new Color(1.0f, 1.0f - ((float)count / numCollisionsToSave), 1.0f);
 			Gizmos.DrawRay(collisionCheck.origin, collisionCheck.direction);
@@ -247,6 +287,7 @@ public class BoundsOctree<T> {
 	/// </summary>
 	/// <param name="checkBounds">bounds that were passed in to check for collisions.</param>
 	#if UNITY_EDITOR
+	// 用于调试，可视化显示碰撞
 	void AddCollisionCheck(Bounds checkBounds) {
 		lastBoundsCollisionChecks.Enqueue(checkBounds);
 		if (lastBoundsCollisionChecks.Count > numCollisionsToSave) {
@@ -261,6 +302,7 @@ public class BoundsOctree<T> {
 	/// </summary>
 	/// <param name="checkRay">ray that was passed in to check for collisions.</param>
 	#if UNITY_EDITOR
+	// 用于调试，可视化显示碰撞
 	void AddCollisionCheck(Ray checkRay) {
 		lastRayCollisionChecks.Enqueue(checkRay);
 		if (lastRayCollisionChecks.Count > numCollisionsToSave) {
@@ -273,18 +315,26 @@ public class BoundsOctree<T> {
 	/// Grow the octree to fit in all objects.
 	/// </summary>
 	/// <param name="direction">Direction to grow.</param>
+	// 扩展八叉树的范围，原来的范围*2
+	// 会创建7个新的节点，同旧的根节点，一个8个节点
+	// 作为新的根节点的孩子
 	void Grow(Vector3 direction) {
 		int xDirection = direction.x >= 0 ? 1 : -1;
 		int yDirection = direction.y >= 0 ? 1 : -1;
 		int zDirection = direction.z >= 0 ? 1 : -1;
 		BoundsOctreeNode<T> oldRoot = rootNode;
 		float half = rootNode.BaseLength / 2;
+
+		// 新的根节点大小，是原来的2倍
 		float newLength = rootNode.BaseLength * 2;
+		// 新的根节点的中心坐标
 		Vector3 newCenter = rootNode.Center + new Vector3(xDirection * half, yDirection * half, zDirection * half);
 
 		// Create a new, bigger octree root node
 		rootNode = new BoundsOctreeNode<T>(newLength, minSize, looseness, newCenter);
 
+		// 创建其他的7个子节点，连同旧的root，是8个子节点
+		// 作为新的根节点的孩子
 		if (oldRoot.HasAnyObjects()) {
 			// Create 7 new octree children to go with the old root as children of the new root
 			int rootPos = rootNode.BestFitChild(oldRoot.Center);
@@ -294,7 +344,11 @@ public class BoundsOctree<T> {
 					children[i] = oldRoot;
 				}
 				else {
+					// i = 0, i%2 = 0
+					// i = 1, i%2 = 1
 					xDirection = i % 2 == 0 ? -1 : 1;
+
+					// 上下2层
 					yDirection = i > 3 ? -1 : 1;
 					zDirection = (i < 2 || (i > 3 && i < 6)) ? -1 : 1;
 					children[i] = new BoundsOctreeNode<T>(oldRoot.BaseLength, minSize, looseness, newCenter + new Vector3(xDirection * half, yDirection * half, zDirection * half));
@@ -309,6 +363,9 @@ public class BoundsOctree<T> {
 	/// <summary>
 	/// Shrink the octree if possible, else leave it the same.
 	/// </summary>
+
+	// 调用BoundsOctreeNode对应函数
+	// 尝试收缩到最开始初始化的大小
 	void Shrink() {
 		rootNode = rootNode.ShrinkIfPossible(initialSize);
 	}
