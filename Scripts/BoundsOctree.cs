@@ -32,6 +32,8 @@ using UnityEngine;
 //	* 最主要的是，这个节点组合成八叉树结构，用于进行空间分割
 //	* 八叉树的初始构造，后期加入删除节点的树结构的维护
 //	* 之前简单的单个单个的碰撞检测，就变成了树一层层的检测
+//	* 缺点/不足：
+//		* 当物体位置进行更改的时候，进行八叉树的更新
 public class BoundsOctree<T> {
 
 	// The total amount of objects currently in the tree
